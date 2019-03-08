@@ -19,3 +19,61 @@ A:Because the boot loader load the kernel at address: 0x100000.
 5(exercise 7).What is the first instruction after the new mapping is established that would fail to work properly if the old mapping were still in place?
 
 A:The first instruction to crash is "jmp	*%eax"
+
+6.Explain the interface between printf.c and console.c. Specifically, what function does console.c export? How is this function used by printf.c? 
+
+A: console.c contains functions interacting with lower-level hardware drives, providing some interfaces for printf.c to call. Console.c export a function "cputchar" which output an character to screen, and "getchar" which read a character from user input.
+
+printf.c use "cputchar" to print a character.
+
+7.Explain the following from console.c: 
+
+1	if (crt_pos >= CRT_SIZE) {
+2              int i;
+3              memmove(crt_buf, crt_buf + CRT_COLS, (CRT_SIZE - CRT_COLS) * sizeof(uint16_t));
+4              for (i = CRT_SIZE - CRT_COLS; i < CRT_SIZE; i++)
+5                      crt_buf[i] = 0x0700 | ' ';
+6              crt_pos -= CRT_COLS;
+7       }
+
+A:The following code section will be called when console output overflows the size of console window, so console.c fills the last line of window with space and move the preceding content backward a line.
+
+8.For the following questions you might wish to consult the notes for Lecture 2. These notes cover GCC's calling convention on the x86.
+
+Trace the execution of the following code step-by-step: 
+
+	int x = 1, y = 3, z = 4;
+	cprintf("x %d, y %x, z %d\n", x, y, z);
+
+
++ In the call to cprintf(), to what does fmt point? To what does ap point?
+A: Fmt points to the address of string "x %d, y %x, z %d\n", ap points to the arguments.
+ 
++ List (in order of execution) each call to cons_putc, va_arg, and vcprintf. For cons_putc, list its argument as well. For va_arg, list what ap points to before and after the call. For vcprintf list the values of its two arguments.
+A:vcprintf(1.fmt:raw string; 2.ap:arguments of format symbols)-> vcprintfmt-> va_args(before:point to 1st argument; after:point to the end of last argument)-> putch-> cputchar-> cons_putc(args:1.character c)
+
+9.Run the following code:
+	unsigned int i = 0x00646c72;
+        cprintf("H%x Wo%s", 57616, &i);
+What is the output? Explain how this output is arrived out in the step-by-step manner of the previous exercise. Here's an ASCII table that maps bytes to characters.
+
+The output depends on that fact that the x86 is little-endian. If the x86 were instead big-endian what would you set i to in order to yield the same output? Would you need to change 57616 to a different value? 
+
+A: output : He110 World, I would change 0x00646c72 to 0x00646c64, I dont't need to change 57616.
+
+10.In the following code, what is going to be printed after 'y='? (note: the answer is not a specific value.) Why does this happen?
+
+    cprintf("x=%d y=%d", 3);
+
+A: A random number will be printed, because we don't feed enough arguments to function.
+
+11.Let's say that GCC changed its calling convention so that it pushed arguments on the stack in declaration order, so that the last argument is pushed last. How would you have to change cprintf or its interface so that it would still be possible to pass it a variable number of arguments? 
+
+A:Not implemented.
+
+12.
+
+
+
+
+
