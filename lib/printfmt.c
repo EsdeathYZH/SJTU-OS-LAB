@@ -67,7 +67,7 @@ printnum(void (*putch)(int, void*), void *putdat,
 	putch("0123456789abcdef"[num % base], putdat);
 
 	if(align_rightflag){
-		while (--pad_width > 0)
+		while (pad_width-- > 0)
 			putch(padc, putdat);
 	}
 }
@@ -304,14 +304,13 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 				  // Your code here
 				  numptr = va_arg(ap, char *);
 				  num = *((int*)putdat) - start_num;
+				  if(numptr == NULL){
+					cprintf(null_error);
+				  }else{
+					*numptr = num;
+				  }
 				  if(num >= 128){
 					cprintf(overflow_error);
-				  }else{
-					  if(numptr == NULL){
-						cprintf(null_error);
-					  }else{
-						*numptr = num;
-					  }
 				  }
 				  break;
 			  }

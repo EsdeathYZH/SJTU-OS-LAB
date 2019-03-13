@@ -69,9 +69,13 @@ A: A random number will be printed, because we don't feed enough arguments to fu
 
 11.Let's say that GCC changed its calling convention so that it pushed arguments on the stack in declaration order, so that the last argument is pushed last. How would you have to change cprintf or its interface so that it would still be possible to pass it a variable number of arguments? 
 
-A:Not implemented.
+A:I would traverse the input format string reversely.
 
-12.
+12.Determine where the kernel initializes its stack, and exactly where in memory its stack is located. How does the kernel reserve space for its stack? And at which "end" of this reserved area is the stack pointer initialized to point to?
+
+A:Kernel initializes its stack at address 0x7c00, before the calling of function:bootmain. Kernel reserve the space by load the boot sector at 0x7c00, the stack pointer points to the high "end" initially.
+
+13. 
 
 
 
