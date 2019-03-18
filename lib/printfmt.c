@@ -28,17 +28,36 @@ static const char * const error_string[MAXERROR] =
 	[E_FAULT]	= "segmentation fault",
 };
 
+static int check_bits(unsigned long long num, unsigned base){
+	int bits = 0;
+	while(num > 0){
+		num = num / base;
+		bits++;
+	}
+	return bits;
+}
+
 /*
  * Print a number (base <= 16) in reverse order,
  * using specified putch function and associated pointer putdat.
  */
 static void
 printnum(void (*putch)(int, void*), void *putdat,
-	 unsigned long long num, unsigned base, int width, int padc)
+	 unsigned long long num, unsigned base, int width, int padc, int align_rightflag)
 {
+	// if cprintf'parameter includes pattern of the form "%-", padding
+	// space on the right side if neccesary.
+	// you can add helper function if needed.
+	// your code here:
+	int bits_num = check_bits(num, base);
+	int pad_width = width - bits_num;
+	if(align_rightflag){
+		width = bits_num;
+	}
+
 	// first recursively print all preceding (more significant) digits
 	if (num >= base) {
-		printnum(putch, putdat, num / base, base, width - 1, padc);
+		printnum(putch, putdat, num / base, base, width - 1, padc, 0);
 	} else {
 		// print any needed pad characters before first digit
 		while (--width > 0)
@@ -47,6 +66,11 @@ printnum(void (*putch)(int, void*), void *putdat,
 
 	// then print this (the least significant) digit
 	putch("0123456789abcdef"[num % base], putdat);
+
+	if(align_rightflag){
+		while (pad_width-- > 0)
+			putch(padc, putdat);
+	}
 }
 
 // Get an unsigned int of various possible sizes from a varargs list,
@@ -79,15 +103,26 @@ getint(va_list *ap, int lflag)
 // Main function to format and print a string.
 void printfmt(void (*putch)(int, void*), void *putdat, const char *fmt, ...);
 
+int printsign(void (*putch)(int, void*), void *putdat, int plusflag)
+{
+	if (plusflag) {
+		//clear plus flag
+		putch('+', putdat);
+	}
+	return 0;
+}
+
 void
 vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 {
 	register const char *p;
 	register int ch, err;
 	unsigned long long num;
-	int base, lflag, width, precision, altflag;
+	int base, lflag, width, precision, altflag, plusflag, align_rightflag;
 	char padc;
 
+	int start_num = *((int*)putdat);
+	char *numptr;
 	while (1) {
 		while ((ch = *(unsigned char *) fmt++) != '%') {
 			if (ch == '\0')
@@ -101,9 +136,19 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		precision = -1;
 		lflag = 0;
 		altflag = 0;
+		plusflag = 0;
+		align_rightflag = 0;
+		
+		if(*(unsigned char *)(fmt) == '-'){
+			align_rightflag = 1;
+			fmt++;
+		}
 	reswitch:
 		switch (ch = *(unsigned char *) fmt++) {
-
+		// flag to add a '+/-' before a number
+		case '+':
+			plusflag = 1;
+			goto reswitch;
 		// flag to pad on the right
 		case '-':
 			padc = '-';
@@ -191,14 +236,20 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		case 'd':
 			num = getint(&ap, lflag);
 			if ((long long) num < 0) {
+				//if we have printed '-', clear plus flag
+				plusflag = 0;
 				putch('-', putdat);
 				num = -(long long) num;
+			}
+			else {
+				plusflag = printsign(putch, putdat, plusflag);
 			}
 			base = 10;
 			goto number;
 
 		// unsigned decimal
 		case 'u':
+			plusflag = printsign(putch, putdat, plusflag);
 			num = getuint(&ap, lflag);
 			base = 10;
 			goto number;
@@ -206,10 +257,11 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		// (unsigned) octal
 		case 'o':
 			// Replace this with your code.
-			putch('X', putdat);
-			putch('X', putdat);
-			putch('X', putdat);
-			break;
+			plusflag = printsign(putch, putdat, plusflag);
+			putch('0', putdat);
+			num = getuint(&ap, lflag);
+			base = 8;
+			goto number;
 
 		// pointer
 		case 'p':
@@ -222,11 +274,47 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 		// (unsigned) hexadecimal
 		case 'x':
+			plusflag = printsign(putch, putdat, plusflag);
 			num = getuint(&ap, lflag);
 			base = 16;
 		number:
-			printnum(putch, putdat, num, base, width, padc);
+			printnum(putch, putdat, num, base, width, padc, align_rightflag);
+			align_rightflag = 0;
 			break;
+
+		case 'n': {
+				  // You can consult the %n specifier specification of the C99 printf function
+				  // for your reference by typing "man 3 printf" on the console. 
+
+				  // 
+				  // Requirements:
+				  // Nothing printed. The argument must be a pointer to a signed char, 
+				  // where the number of characters written so far is stored.
+				  //
+
+				  // hint:  use the following strings to display the error messages 
+				  //        when the cprintf function ecounters the specific cases,
+				  //        for example, when the argument pointer is NULL
+				  //        or when the number of characters written so far 
+				  //        is beyond the range of the integers the signed char type 
+				  //        can represent.
+
+				  const char *null_error = "\nerror! writing through NULL pointer! (%%n argument)\n";
+				  const char *overflow_error = "\nwarning! The value %%n argument pointed to has been overflowed!\n";
+
+				  // Your code here
+				  numptr = va_arg(ap, char *);
+				  num = *((int*)putdat) - start_num;
+				  if(numptr == NULL){
+					cprintf(null_error);
+				  }else{
+					*numptr = num;
+				  }
+				  if(num >= 128){
+					cprintf(overflow_error);
+				  }
+				  break;
+			  }
 
 		// escaped '%' character
 		case '%':
