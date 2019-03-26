@@ -10,6 +10,7 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
+#include <kern/pmap.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -25,7 +26,10 @@ static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display information about the function backtrace", mon_backtrace},
-	{ "time", "Display total time of a command runs", mon_time}
+	{ "time", "Display total time of a command runs", mon_time},
+	{ "setpermission", "Explicitly set the permissions of any mapping", mon_set_permission},
+	{ "dumpmemory", "Dump the contents of a range of memory given either a virtual or physical address range", mon_dump_memory},
+	{ "showmappings", "Display in a useful and easy-to-read format all of the physical page mappings", mon_show_mappings}
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -53,6 +57,100 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 	cprintf("  end    %08x (virt)  %08x (phys)\n", end, end - KERNBASE);
 	cprintf("Kernel executable memory footprint: %dKB\n",
 		ROUNDUP(end - entry, 1024) / 1024);
+	return 0;
+}
+
+int
+mon_show_mappings(int argc, char **argv, struct Trapframe *tf)
+{
+	if(argc != 3){
+		cprintf("command use: showmappings [start address] [end address]\n");
+		return 0;
+	}
+	uintptr_t start_addr = ROUNDDOWN(strtol(argv[1], NULL, 16), PGSIZE);
+	uintptr_t end_addr = ROUNDDOWN(strtol(argv[2], NULL, 16), PGSIZE);
+
+	cprintf("Memory mappings from %08x to %08x:\n", start_addr, end_addr);
+	for(uintptr_t addr = start_addr; addr <= end_addr; addr += PGSIZE){
+		//pte_t* pte_ptr = (pte_t*)((UVPT + PDX(addr)*PGSIZE)) + PTX(addr);
+		pte_t* pte_ptr = pgdir_walk(kern_pgdir, (void*)addr, 0);
+		if(!pte_ptr){
+			cprintf("%08x -> %08x permisson bits: --/--\n", addr, 0);
+			continue;
+		}
+		cprintf("%08x -> %08x permisson bits: ", addr, PTE_ADDR(*pte_ptr));
+		if((*pte_ptr) & PTE_P){
+			if(((*pte_ptr) & PTE_U) && ((*pte_ptr) & PTE_W)){
+				cprintf("RW/RW\n");
+			}else if((*pte_ptr) & PTE_U){
+				cprintf("R-/R-\n");
+			}else if((*pte_ptr) & PTE_W){
+				cprintf("RW/--\n");
+			}else{
+				cprintf("R-/--\n");
+			}
+		}else{
+			cprintf("--/--\n");
+		}
+	}
+	return 0;
+}
+
+int
+mon_dump_memory(int argc, char **argv, struct Trapframe *tf)
+{
+	if(argc != 4){
+		cprintf("command use: dumpmemory [-v/-p] [start address] [end address]\n");
+		return 0;
+	}
+	uintptr_t addr1 = strtol(argv[2], NULL, 16);
+	uintptr_t addr2 = strtol(argv[3], NULL, 16);
+	uintptr_t start_addr = ROUNDDOWN(addr1, PGSIZE);
+	uintptr_t end_addr = ROUNDDOWN(addr2, PGSIZE);
+
+	if(!strcmp("-p", argv[1])){
+		start_addr = (uintptr_t)KADDR(start_addr);
+		end_addr = (uintptr_t)KADDR(end_addr);
+	}
+
+	cprintf("Dump memory from %08x to %08x:\n", addr1, addr2);
+	for(uintptr_t addr = start_addr; addr <= end_addr; addr += PGSIZE){
+		uintptr_t start = MAX(addr1, addr);
+		uintptr_t end = MIN(addr2, addr+PGSIZE);
+		pte_t* pte_ptr = pgdir_walk(kern_pgdir, (void*)addr, 0);
+		if(!pte_ptr || !((*pte_ptr) | PTE_P)){
+			cprintf("Invalid mapping %08x\n", addr, 0);
+			continue;
+		}
+		long next_line = 1;
+		for(unsigned char* index = (unsigned char*)start; index < (unsigned char*)end; index++,next_line++){
+			cprintf("0x%02x ", (*index));
+			if(next_line%8 == 0) cprintf("\n");
+		}
+	}
+	return 0;
+}
+
+int mon_set_permission(int argc, char **argv, struct Trapframe *tf)
+{
+	if(argc != 3){
+		cprintf("command use: setpermission [address] [permission bit]\n");
+		return 0;
+	}
+	
+	uintptr_t addr = ROUNDDOWN(strtol(argv[1], NULL, 16), PGSIZE);
+	uintptr_t perm_bit = strtol(argv[2], NULL, 16);
+	if(perm_bit >= 512){
+		cprintf("Invalid permission bits!!\n");
+		return 0;
+	}
+	cprintf("Set permission at %08x as %08x:\n", addr, perm_bit);
+	pte_t* pte_ptr = pgdir_walk(kern_pgdir, (void*)addr, 0);
+	if(!pte_ptr){
+		cprintf("Invalid mapping!!\n");
+		return 0;
+	}
+	*pte_ptr = ((*pte_ptr) & (~511)) | perm_bit;
 	return 0;
 }
 

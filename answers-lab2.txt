@@ -1,0 +1,39 @@
+1.Assuming that the following JOS kernel code is correct, what type should variable x have, uintptr_t or physaddr_t?
+
+	mystery_t x;
+	char* value = return_a_pointer();
+	*value = 10;
+	x = (mystery_t) value;
+
+A:The type that variable x should have is uintptr_t.
+
+2.What entries (rows) in the page directory have been filled in at this point? What addresses do they map and where do they point? In other words, fill out this table as much as possible:
+
+Entry           Base Virtual Address            Points (logically):
+1023 - 960	0xf0000000 - 0xffc00000		Physical memory			
+959		0xefc00000			kernel stack
+958		0xef800000			Memory mapped IO
+957		0xef400000			Kernel page table	
+956		0xef000000			Physical page list	
+955		0xeec00000			Environment list		
+
+3.(From Lecture 3) We have placed the kernel and user environment in the same address space. Why will user programs not be able to read or write the kernel's memory? What specific mechanisms protect the kernel memory?
+
+A:Segment mechanisms and Page mechanisms protect the kernel memory, there are many permisson bits in page table entry, if user program attempt to access kernel memory, CPU would check CPL in CS segment selector if it has enough permisson.
+
+4.What is the maximum amount of physical memory that this operating system can support? Why?
+
+A: I think it's 2^31 bytes physical memory that this OS can support, because the size of physical space we use to store PageInfo is only PTSIZE = 2^22, that's to say, we can only manage 2^19 pages, as 2^31 bytes memory.
+
+5.How much space overhead is there for managing memory, if we actually had the maximum amount of physical memory? How is this overhead broken down?
+
+A: Two PTSIZE, i.e. 2^23 bytes. If we acually had maximum physical memory, we can discard vrtual memory mechanism, use a less-overhead mechanism to replace. Such as using physical address directly, using domain to record every process's physical memory region.
+
+6.Revisit the page table setup in kern/entry.S and kern/entrypgdir.c. Immediately after we turn on paging, EIP is still a low number (a little over 1MB). At what point do we transition to running at an EIP above KERNBASE? What makes it possible for us to continue executing at a low EIP between when we enable paging and when we begin running at an EIP above KERNBASE? Why is this transition necessary?
+
+A:At this instruction : "jmp	*%eax", because we map the low 4MB physical memory in page table that we can still run at a low EIP.
+
+Because we will current page table is still a template page table. Kernel will build a new page table not very soon, and after then we can not run at a lower EIP so this transition is necessary.
+
+7.实现一个challenge
+   这次lab我选择实现了第二个challenge，即在monitor上扩展命令来查看内存映射信息。我实现了三个指令：showmappings，setpermission, dumpmemory，分别提供的功能是查看虚拟内存映射，改变页表项权限位，查看内存数据。在解析命令行时我使用了库提供的strtol函数来解析地址参数，之后使用在之前写好的pgdri_walk函数就可以找到相应的页表项，之后再根据功能需要访问更改页表项或者访问内存，这里需要注意的是在访问未被映射的虚拟地址以及未被分配的物理地址时，要注意查看页表项指针是否为空以及present位是否置位，及时打出错误信息避免出现内存错误。实现challenge的代码在monitor.c文件中。
