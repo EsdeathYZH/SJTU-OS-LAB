@@ -3,7 +3,7 @@
 #include <inc/stdio.h>
 #include <inc/string.h>
 #include <inc/assert.h>
-
+#include <inc/x86.h>
 #include <kern/monitor.h>
 #include <kern/console.h>
 #include <kern/pmap.h>
@@ -11,6 +11,8 @@
 #include <kern/env.h>
 #include <kern/trap.h>
 
+extern void sysenter_handler();
+void msr_init();
 
 void
 i386_init(void)
@@ -42,6 +44,7 @@ i386_init(void)
 
 	// Lab 3 user environment initialization functions
 	env_init();
+	msr_init();
 	trap_init();
 
 #if defined(TEST)
@@ -102,4 +105,10 @@ _warn(const char *file, int line, const char *fmt,...)
 	vcprintf(fmt, ap);
 	cprintf("\n");
 	va_end(ap);
+}
+
+void msr_init(){
+	wrmsr(0x174, GD_KT, 0);
+	wrmsr(0x175, KSTACKTOP, 0);
+	wrmsr(0x176, sysenter_handler, 0);
 }

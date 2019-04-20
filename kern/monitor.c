@@ -284,8 +284,8 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 		struct Eipdebuginfo info;
 		debuginfo_eip(*(ebp+1), &info);
 
-		cprintf("  eip %08x  ebp %08x  args %08x %08x %08x %08x %08x\n", 
-			*(ebp+1), ebp, *(ebp+2), *(ebp+3), *(ebp+4), *(ebp+5), *(ebp+6));
+		//cprintf("  eip %08x  ebp %08x  args %08x %08x %08x %08x %08x\n", 
+		//	*(ebp+1), ebp, *(ebp+2), *(ebp+3), *(ebp+4), *(ebp+5), *(ebp+6));
 		cprintf("         %s:%d %.*s+%d\n", info.eip_file, info.eip_line, 				info.eip_fn_namelen, info.eip_fn_name, *(ebp+1) - info.eip_fn_addr);
 		ebp = (uint32_t*) *ebp;
 	}

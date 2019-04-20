@@ -157,7 +157,7 @@ mem_init(void)
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
-
+	envs = (struct Env*) boot_alloc(NENV * sizeof(struct Env));
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -188,7 +188,7 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
-
+	boot_map_region(kern_pgdir, UENVS, ROUNDUP(NENV*sizeof(struct Env), PGSIZE), PADDR((void*)envs), PTE_U);
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
 	// stack.  The kernel stack grows down from virtual address KSTACKTOP.
@@ -588,7 +588,28 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
-
+	uint32_t va_start = ROUNDDOWN((uint32_t)va, PGSIZE);
+	uint32_t va_end = ROUNDUP((uint32_t)va+len, PGSIZE);
+	for(uint32_t addr = va_start; addr < va_end; addr+=PGSIZE){
+		pte_t* pte;
+		struct PageInfo* page = page_lookup(env->env_pgdir, (void*)addr, &pte);
+		if(page == NULL || ((*pte) & PTE_P) == 0){
+			if(addr == va_start){
+				user_mem_check_addr = (uintptr_t)va;
+			}else{
+				user_mem_check_addr = (uintptr_t)addr;
+			}
+			return -E_FAULT;
+		}
+		if(((*pte) & perm) == 0 && addr >= ULIM){
+			if(addr == va_start){
+				user_mem_check_addr = (uintptr_t)va;
+			}else{
+				user_mem_check_addr = (uintptr_t)addr;
+			}
+			return -E_FAULT;
+		}
+	}
 	return 0;
 }
 
