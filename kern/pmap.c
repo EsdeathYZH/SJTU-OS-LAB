@@ -12,12 +12,12 @@
 #include <inc/queue.h>
 
 // These variables are set by i386_detect_memory()
-size_t npages;			// Amount of physical memory (in pages)
+size_t npages = 0;			// Amount of physical memory (in pages)
 static size_t npages_basemem;	// Amount of base memory (in pages)
 
 // These variables are set in mem_init()
-pde_t *kern_pgdir;		// Kernel's initial page directory
-struct PageInfo *pages;		// Physical page state array
+pde_t *kern_pgdir = NULL;		// Kernel's initial page directory
+struct PageInfo *pages = NULL;		// Physical page state array
 static struct PageInfo *page_free_list;	// Free list of physical pages
 
 
@@ -214,7 +214,7 @@ mem_init(void)
 
 	// Initialize the SMP-related parts of the memory map
 	mem_init_mp();
-	boot_map_region_large(kern_pgdir, (uintptr_t)KERNBASE, 1<<28, (physaddr_t)0, PTE_W);
+	boot_map_region(kern_pgdir, (uintptr_t)KERNBASE, 1<<28, (physaddr_t)0, PTE_W);
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();

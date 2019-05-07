@@ -37,14 +37,14 @@ i386_init(void)
 	// Can't call cprintf until after we do this!
 	cons_init();
 
-	cprintf("6828 decimal is %o octal!%n\n%n", 6828, &chnum1, &chnum2);
-	cprintf("pading space in the right to number 22: %-8d.\n", 22);
-	cprintf("chnum1: %d chnum2: %d\n", chnum1, chnum2);
-	cprintf("%n", NULL);
-	memset(ntest, 0xd, sizeof(ntest) - 1);
-	cprintf("%s%n", ntest, &chnum1); 
-	cprintf("chnum1: %d\n", chnum1);
-	cprintf("show me the sign: %+d, %+d\n", 1024, -1024);
+	// cprintf("6828 decimal is %o octal!%n\n%n", 6828, &chnum1, &chnum2);
+	// cprintf("pading space in the right to number 22: %-8d.\n", 22);
+	// cprintf("chnum1: %d chnum2: %d\n", chnum1, chnum2);
+	// cprintf("%n", NULL);
+	// memset(ntest, 0xd, sizeof(ntest) - 1);
+	// cprintf("%s%n", ntest, &chnum1); 
+	// cprintf("chnum1: %d\n", chnum1);
+	// cprintf("show me the sign: %+d, %+d\n", 1024, -1024);
 
 	// Lab 2 memory management initialization functions
 	mem_init();
@@ -72,7 +72,10 @@ i386_init(void)
 	ENV_CREATE(TEST, ENV_TYPE_USER);
 #else
 	// Touch all you want.
-	ENV_CREATE(user_primes, ENV_TYPE_USER);
+	//ENV_CREATE(user_primes, ENV_TYPE_USER);
+	ENV_CREATE(user_yield, ENV_TYPE_USER);
+	ENV_CREATE(user_yield, ENV_TYPE_USER);
+	ENV_CREATE(user_yield, ENV_TYPE_USER);
 #endif // TEST*
 
 	// Schedule and run the first user environment!
@@ -100,11 +103,12 @@ boot_aps(void)
 	for (c = cpus; c < cpus + ncpu; c++) {
 		if (c == cpus + cpunum())  // We've started already.
 			continue;
-
 		// Tell mpentry.S what stack to use 
 		mpentry_kstack = percpu_kstacks[c - cpus] + KSTKSIZE;
 		// Start the CPU at mpentry_start
+		cprintf("start:%d\n", c->cpu_id);
 		lapic_startap(c->cpu_id, PADDR(code));
+
 		// Wait for the CPU to finish some basic setup in mp_main()
 		while(c->cpu_status != CPU_STARTED)
 			;
