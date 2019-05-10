@@ -150,8 +150,8 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 	return 0;
 }
 
-// Set the page fault upcall for 'envid' by modifying the corresponding struct
-// Env's 'env_pgfault_upcall' field.  When 'envid' causes a page fault, the
+// Set the processor exceptions upcall for 'envid' by modifying the corresponding struct
+// Env's 'env_exception_upcall' field.  When 'envid' causes a processor exception, the
 // kernel will push a fault record onto the exception stack, then branch to
 // 'func'.
 //
@@ -510,6 +510,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		}
 		case SYS_env_set_pgfault_upcall:{
 			return sys_env_set_pgfault_upcall(a1, (void*)a2);
+		}
+		case SYS_env_set_exception_upcall:{
+			return sys_env_set_exception_upcall(a1, (void*)a2);
 		}
 		case SYS_ipc_recv:{
 			return sys_ipc_recv((void*)a1);

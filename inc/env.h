@@ -58,6 +58,7 @@ struct Env {
 
 	// Exception handling
 	void *env_pgfault_upcall;	// Page fault upcall entry point
+	void *env_exception_upcall;
 
 	// Lab 4 IPC
 	bool env_ipc_recving;		// Env is blocked receiving

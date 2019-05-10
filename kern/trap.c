@@ -247,9 +247,9 @@ print_regs(struct PushRegs *regs)
 static void
 trap_dispatch(struct Trapframe *tf)
 {
+
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
-
 	// Handle spurious interrupts
 	// The hardware sometimes raises these because of noise on the
 	// IRQ line or other reasons. We don't care.
@@ -266,7 +266,7 @@ trap_dispatch(struct Trapframe *tf)
 		lapic_eoi();
 		sched_yield();
 	}
-
+	
 
 	// Handle page fault
 	if(tf->tf_trapno == T_PGFLT){
@@ -278,6 +278,7 @@ trap_dispatch(struct Trapframe *tf)
 		//[TODO] Why I write a return?
 		return;
 	}
+	
 	//Handle system call
 	if(tf->tf_trapno == T_SYSCALL){
 		int32_t result = syscall(tf->tf_regs.reg_eax, 
@@ -289,6 +290,28 @@ trap_dispatch(struct Trapframe *tf)
 		tf->tf_regs.reg_eax = result;
 		//这个return要有的
 		return;
+	}
+		
+	if(tf->tf_trapno <= T_SIMDERR && tf->tf_trapno >= T_DIVIDE && tf->tf_trapno != T_PGFLT && curenv->env_exception_upcall != NULL){
+		struct UTrapframe* trapFramePtr;
+		//Already in page fault handler
+		if(tf->tf_esp <= UXSTACKTOP && tf->tf_esp >= UXSTACKTOP-PGSIZE){
+			trapFramePtr = (struct UTrapframe*)(tf->tf_esp - sizeof(void*) - sizeof(struct UTrapframe));
+		}else{
+			trapFramePtr = (struct UTrapframe*)(UXSTACKTOP - sizeof(struct UTrapframe));
+		}
+		user_mem_assert(curenv, (void*)trapFramePtr, sizeof(struct UTrapframe), PTE_W);
+		//First push previous trapframe and then branch current environment to curenv->env_pgfault_upcall
+		trapFramePtr->utf_regs = tf->tf_regs;
+		trapFramePtr->utf_eflags = tf->tf_eflags;
+		trapFramePtr->utf_eip = tf->tf_eip;
+		trapFramePtr->utf_err = tf->tf_err;
+		trapFramePtr->utf_fault_va = 0;
+		trapFramePtr->utf_esp = tf->tf_esp;
+		trapFramePtr->utf_trapno = tf->tf_trapno;
+		tf->tf_esp = (uintptr_t) trapFramePtr;
+		tf->tf_eip = (uintptr_t)curenv->env_exception_upcall;
+		env_run(curenv);
 	}
 
 	// Unexpected trap: The user process or the kernel has a bug.
@@ -307,7 +330,6 @@ trap(struct Trapframe *tf)
 	// The environment may have set DF and some versions
 	// of GCC rely on DF being clear
 	asm volatile("cld" ::: "cc");
-
 	// Halt the CPU if some other CPU has called panic()
 	extern char *panicstr;
 	if (panicstr)
@@ -433,6 +455,7 @@ page_fault_handler(struct Trapframe *tf)
 		trapFramePtr->utf_err = tf->tf_err;
 		trapFramePtr->utf_fault_va = fault_va;
 		trapFramePtr->utf_esp = tf->tf_esp;
+		trapFramePtr->utf_trapno = tf->tf_trapno;
 		tf->tf_esp = (uintptr_t) trapFramePtr;
 		tf->tf_eip = (uintptr_t)curenv->env_pgfault_upcall;
 		env_run(curenv);
