@@ -3,7 +3,7 @@
 #include <inc/stdio.h>
 #include <inc/string.h>
 #include <inc/assert.h>
-
+#include <inc/x86.h>
 #include <kern/monitor.h>
 #include <kern/console.h>
 #include <kern/pmap.h>
@@ -17,21 +17,41 @@
 
 static void boot_aps(void);
 
+extern void sysenter_handler();
+void msr_init();
 
 void
 i386_init(void)
 {
+
+	extern char edata[], end[];
+
+	// Lab1 only
+	char chnum1 = 0, chnum2 = 0, ntest[256] = {};
+	// Before doing anything else, complete the ELF loading process.
+	// Clear the uninitialized global data (BSS) section of our program.
+	// This ensures that all static/global variables start out zero.
+	memset(edata, 0, end - edata);
+
 	// Initialize the console.
 	// Can't call cprintf until after we do this!
 	cons_init();
 
-	cprintf("6828 decimal is %o octal!\n", 6828);
+	// cprintf("6828 decimal is %o octal!%n\n%n", 6828, &chnum1, &chnum2);
+	// cprintf("pading space in the right to number 22: %-8d.\n", 22);
+	// cprintf("chnum1: %d chnum2: %d\n", chnum1, chnum2);
+	// cprintf("%n", NULL);
+	// memset(ntest, 0xd, sizeof(ntest) - 1);
+	// cprintf("%s%n", ntest, &chnum1); 
+	// cprintf("chnum1: %d\n", chnum1);
+	// cprintf("show me the sign: %+d, %+d\n", 1024, -1024);
 
 	// Lab 2 memory management initialization functions
 	mem_init();
 
 	// Lab 3 user environment initialization functions
 	env_init();
+	msr_init();
 	trap_init();
 
 	// Lab 4 multiprocessor initialization functions
@@ -43,7 +63,7 @@ i386_init(void)
 
 	// Acquire the big kernel lock before waking up APs
 	// Your code here:
-
+	lock_kernel();
 	// Starting non-boot CPUs
 	boot_aps();
 
@@ -86,11 +106,12 @@ boot_aps(void)
 	for (c = cpus; c < cpus + ncpu; c++) {
 		if (c == cpus + cpunum())  // We've started already.
 			continue;
-
 		// Tell mpentry.S what stack to use 
 		mpentry_kstack = percpu_kstacks[c - cpus] + KSTKSIZE;
 		// Start the CPU at mpentry_start
+		cprintf("start:%d\n", c->cpu_id);
 		lapic_startap(c->cpu_id, PADDR(code));
+
 		// Wait for the CPU to finish some basic setup in mp_main()
 		while(c->cpu_status != CPU_STARTED)
 			;
@@ -116,8 +137,11 @@ mp_main(void)
 	//
 	// Your code here:
 
+	lock_kernel();
+	// Schedule and run the first user environment!
+	sched_yield();
 	// Remove this after you finish Exercise 6
-	for (;;);
+	//for (;;);
 }
 
 /*
@@ -165,4 +189,10 @@ _warn(const char *file, int line, const char *fmt,...)
 	vcprintf(fmt, ap);
 	cprintf("\n");
 	va_end(ap);
+}
+
+void msr_init(){
+	wrmsr(0x174, GD_KT, 0);
+	wrmsr(0x175, KSTACKTOP, 0);
+	wrmsr(0x176, sysenter_handler, 0);
 }
