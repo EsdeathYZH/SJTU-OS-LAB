@@ -60,6 +60,7 @@ struct Env {
 
 	// Exception handling
 	void *env_pgfault_upcall;	// Page fault upcall entry point
+	void *env_exception_upcall;
 
 	// Lab 4 IPC
 	bool env_ipc_recving;		// Env is blocked receiving
@@ -67,6 +68,10 @@ struct Env {
 	uint32_t env_ipc_value;		// Data value sent to us
 	envid_t env_ipc_from;		// envid of the sender
 	int env_ipc_perm;		// Perm of page mapping received
+
+	// For Lab3 sbrk
+	uintptr_t env_break;
+
 };
 
 #endif // !JOS_INC_ENV_H

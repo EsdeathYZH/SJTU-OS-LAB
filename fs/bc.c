@@ -1,6 +1,9 @@
 
 #include "fs.h"
 
+uint64_t allocated_block_num = 0;
+uint64_t block_num_threshold = (1024*16); //64MB
+
 // Return the virtual address of this disk block.
 void*
 diskaddr(uint32_t blockno)
@@ -29,9 +32,13 @@ va_is_dirty(void *va)
 static void
 bc_pgfault(struct UTrapframe *utf)
 {
+	if(allocated_block_num >= block_num_threshold){
+		evict_block();
+	}
 	void *addr = (void *) utf->utf_fault_va;
 	uint32_t blockno = ((uint32_t)addr - DISKMAP) / BLKSIZE;
 	int r;
+	//cprintf("address:%lx\n", (uint32_t)addr);
 
 	// Check that the fault was within the block cache region
 	if (addr < (void*)DISKMAP || addr >= (void*)(DISKMAP + DISKSIZE))
@@ -48,7 +55,11 @@ bc_pgfault(struct UTrapframe *utf)
 	// the disk.
 	//
 	// LAB 5: you code here:
-
+	addr = (void*)ROUNDDOWN((uintptr_t)addr, PGSIZE);
+	if((r = sys_page_alloc(0, addr, PTE_P|PTE_U|PTE_W)) < 0)
+		panic("in bc_pgfault, sys_page_alloc: %e", r);
+	if((r = ide_read(blockno * BLKSECTS, addr, BLKSECTS)) < 0)
+		panic("in bc_pgfault, ide_read: %e", r);
 	// Clear the dirty bit for the disk block page since we just read the
 	// block from disk
 	if ((r = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL)) < 0)
@@ -59,6 +70,9 @@ bc_pgfault(struct UTrapframe *utf)
 	// in?)
 	if (bitmap && block_is_free(blockno))
 		panic("reading free block %08x\n", blockno);
+
+	allocated_block_num++;
+	//cprintf("total block number:%d\n", allocated_block_num);
 }
 
 // Flush the contents of the block containing VA out to disk if
@@ -77,7 +91,60 @@ flush_block(void *addr)
 		panic("flush_block of bad va %08x", addr);
 
 	// LAB 5: Your code here.
-	panic("flush_block not implemented");
+	if(!va_is_mapped(addr) || !va_is_dirty(addr)){
+		return;
+	}
+	int r;
+	addr = (void*)ROUNDDOWN((uintptr_t)addr, PGSIZE);
+	if((r = ide_write(blockno * BLKSECTS, addr, BLKSECTS)) < 0)
+		panic("ide_write: %e", r);
+	if((r = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL)) < 0)
+		panic("in flush_back, sys_page_map: %e", r);
+}
+
+void 
+evict_block()
+{
+	//Every time we evict evict_batch_size blocks
+	int r;
+	uint32_t evict_block_num = 0;
+	uint32_t evict_batch_size = 64;
+	for(uintptr_t addr = DISKMAP+2*PGSIZE; addr < DISKSIZE+DISKMAP; addr += PGSIZE){
+		if(va_is_mapped((void*)addr) && (uvpt[PGNUM(addr)] & PTE_A)==0){
+			if(va_is_dirty((void*)addr)){
+				flush_block((void*)addr);
+			}
+			if((r = sys_page_unmap(0, (void*)addr)) < 0){
+				panic("sys_page_unmap: %e", r);
+			}
+			assert(!va_is_mapped((void*)addr));
+			evict_block_num++;
+			//cprintf("Evict unaccessed block is successful!!\n");
+			if(evict_block_num >= evict_batch_size) break;
+		}
+	}
+	if(evict_block_num < evict_batch_size){
+		for(uintptr_t addr = DISKMAP+2*PGSIZE; addr < DISKSIZE+DISKMAP; addr += PGSIZE){
+			if(va_is_mapped((void*)addr)){
+				if(va_is_dirty((void*)addr)){
+					flush_block((void*)addr);
+				}
+				if((r = sys_page_unmap(0, (void*)addr)) < 0){
+					panic("sys_page_unmap: %e", r);
+				}
+				assert(!va_is_mapped((void*)addr));
+				evict_block_num++;
+				//cprintf("Evict accessed block is successful!!\n");
+				if(evict_block_num >= evict_batch_size) break;
+			}
+		}
+	}
+	//impossible
+	if(evict_block_num < evict_batch_size){
+		assert(false);
+	}
+	cprintf("Evict block is successful!!\n");
+	allocated_block_num -= evict_block_num;
 }
 
 // Test that the block cache works, by smashing the superblock and

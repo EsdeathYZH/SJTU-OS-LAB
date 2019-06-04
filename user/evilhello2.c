@@ -5,7 +5,7 @@
 #include <inc/mmu.h>
 #include <inc/x86.h>
 
-char vaddr[PGSIZE];
+char vaddr_big[2*PGSIZE];
 struct Segdesc old;
 struct Segdesc *gdt;
 struct Segdesc *entry;
@@ -35,7 +35,7 @@ void call_fun_ptr()
 {
     evil();  
     *entry = old;  
-    asm volatile("popl %ebp");
+    asm volatile("leave");
     asm volatile("lret");   
 }
 
@@ -63,7 +63,7 @@ void ring0_call(void (*fun_ptr)(void)) {
     // Lab3 : Your Code Here
     struct Pseudodesc r_gdt; 
     sgdt(&r_gdt);
-
+    void* vaddr = (void*)ROUNDUP((uintptr_t)vaddr_big, PGSIZE);
     int t = sys_map_kernel_page((void* )r_gdt.pd_base, (void* )vaddr);
     if (t < 0) {
         cprintf("ring0_call: sys_map_kernel_page failed, %e\n", t);

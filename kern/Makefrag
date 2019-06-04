@@ -76,6 +76,7 @@ KERN_BINFILES +=	user/idle \
 			user/faultallocbad \
 			user/faultnostack \
 			user/faultbadhandler \
+			user/testexcepthandler \
 			user/faultevilhandler \
 			user/forktree \
 			user/sendpage \
