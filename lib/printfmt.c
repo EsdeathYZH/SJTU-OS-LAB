@@ -35,6 +35,8 @@ static const char * const error_string[MAXERROR] =
 	[E_FILE_EXISTS]	= "file already exists",
 	[E_NOT_EXEC]	= "file is not a valid executable",
 	[E_NOT_SUPP]	= "operation not supported",
+	[E_TX_FULL]	= "transmit queue is full",
+	[E_RX_FULL]	= "receive queue is full",
 };
 
 static int check_bits(unsigned long long num, unsigned base){

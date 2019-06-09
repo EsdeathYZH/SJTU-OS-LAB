@@ -491,7 +491,7 @@ static int
 sys_time_msec(void)
 {
 	// LAB 6: Your code here.
-	panic("sys_time_msec not implemented");
+	return time_msec();
 }
 
 int
@@ -501,7 +501,12 @@ sys_net_send(const void *buf, uint32_t len)
 	// Check the user permission to [buf, buf + len]
 	// Call e1000_tx to send the packet
 	// Hint: e1000_tx only accept kernel virtual address
-	return -1;
+	int r;
+	if((r = user_mem_check(curenv, buf, len, PTE_W|PTE_U)) < 0){
+		cprintf("address:%x\n", (uint32_t)buf);
+		return r;
+	}
+	return e1000_tx(buf, len);
 }
 
 int
@@ -511,7 +516,12 @@ sys_net_recv(void *buf, uint32_t len)
 	// Check the user permission to [buf, buf + len]
 	// Call e1000_rx to fill the buffer
 	// Hint: e1000_rx only accept kernel virtual address
-	return -1;
+	int r;
+	// if((r = user_mem_check(curenv, buf, PGSIZE, PTE_W|PTE_U)) < 0){
+	// 	cprintf("address:%x\n", (uint32_t)buf);
+	// 	return r;
+	// }
+	return e1000_rx(buf, len);
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -576,6 +586,15 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		}
 		case SYS_ipc_try_send:{
 			return sys_ipc_try_send(a1, a2, (void*)a3, a4);
+		}
+		case SYS_time_msec:{
+			return sys_time_msec();
+		}
+		case SYS_net_send:{
+			return sys_net_send((void*)a1, a2);
+		}
+		case SYS_net_recv:{
+			return sys_net_recv((void*)a1, a2);
 		}
 		case NSYSCALLS:{
 			return 0;

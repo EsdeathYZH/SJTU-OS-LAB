@@ -28,6 +28,9 @@ enum {
 
 	E_AGAIN		,	// Resource not available, try again
 
+	//network error
+	E_TX_FULL,
+	E_RX_FULL,
 	MAXERROR
 };
 

@@ -5,6 +5,8 @@
 
 #define E1000_VID 0x8086
 #define E1000_DID 0x100e
+#define MAX_PKT_SIZE 1518
+#define RECV_SIZE 2048
 
 struct E1000 {
 	volatile uint32_t CTRL;             /* 0x00000  Device Control - RW */
@@ -49,6 +51,10 @@ struct E1000 {
 #define E1000_RCTL_EN                (2U)
 #define E1000_RCTL_BSIZE_2048        (0U << 16)
 #define E1000_RCTL_SECRC             (1U << 26)
+#define E1000_RCTL_BAM               0x00008000    /* broadcast enable */
+
+#define E1000_TCTL_CT   0x00000ff0    /* collision threshold */
+#define E1000_TCTL_COLD 0x003ff000    /* collision distance */
 
 #define QEMU_MAC_LOW 0x12005452
 #define QEMU_MAC_HIGH 0x5634
@@ -77,6 +83,7 @@ struct rx_desc {
 };
 
 #define E1000_RX_STATUS_DD (1U)
+#define E1000_RX_STATUS_EOP (2U)
 
 int pci_e1000_attach(struct pci_func *pcif);
 int e1000_tx_init();
