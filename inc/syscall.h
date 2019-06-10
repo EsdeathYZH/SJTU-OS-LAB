@@ -23,6 +23,8 @@ enum {
 	SYS_time_msec,
 	SYS_net_send,
 	SYS_net_recv,
+	SYS_read_mac_low_address,
+	SYS_read_mac_high_address,
 	NSYSCALLS
 };
 

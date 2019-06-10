@@ -524,6 +524,16 @@ sys_net_recv(void *buf, uint32_t len)
 	return e1000_rx(buf, len);
 }
 
+static uint32_t 
+sys_read_mac_low_address(){
+	return read_mac_low_address();
+}
+
+static uint32_t 
+sys_read_mac_high_address(){
+	return read_mac_high_address();
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -595,6 +605,12 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		}
 		case SYS_net_recv:{
 			return sys_net_recv((void*)a1, a2);
+		}
+		case SYS_read_mac_low_address:{
+			return sys_read_mac_low_address();
+		}
+		case SYS_read_mac_high_address:{
+			return sys_read_mac_high_address();
 		}
 		case NSYSCALLS:{
 			return 0;

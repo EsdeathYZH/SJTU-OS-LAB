@@ -57,6 +57,35 @@ static void set_rdt(uint64_t tail){
     base->RDT = tail;
 }
 
+
+uint16_t 
+read_word_from_EEPROM(uint8_t addr){
+	//fill address in EERD
+	base->EERD &= (~0xfffc);
+	base->EERD |= (addr << 8);
+	//start read
+	base->EERD |= E1000_EERD_START;
+	//poll until read is done
+	while((base->EERD & E1000_EERD_DONE) == 0) ;
+	base->EERD &= (~E1000_EERD_DONE);
+	uint16_t data = (base->EERD >> 16) & 0xffff;
+	base->EERD &= 0xffff;
+	return data;
+}
+
+uint32_t 
+read_mac_low_address(){
+	uint32_t mac_word0 = read_word_from_EEPROM(0x00);
+	uint32_t mac_word1 = read_word_from_EEPROM(0x01);
+	return (mac_word0 | (mac_word1 << 16));
+}
+
+uint32_t
+read_mac_high_address(){
+	uint32_t mac_word2 = read_word_from_EEPROM(0x02);
+	return mac_word2;
+}
+
 int
 e1000_tx_init()
 {
@@ -107,8 +136,8 @@ e1000_rx_init()
 
 	// Set hardward registers
 	// Look kern/e1000.h to find useful definations
-	base->RAL = 0x12005452;
-	base->RAH = 0x5634;
+	base->RAL = read_mac_low_address();
+	base->RAH = read_mac_high_address();
 	base->RDBAL = (uint32_t)PADDR(rx_descs);
 	base->RDBAH = 0;
 	base->RDLEN = N_RXDESC * sizeof(struct rx_desc);

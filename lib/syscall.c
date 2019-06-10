@@ -194,3 +194,16 @@ sys_net_recv(void *buf, uint32_t len)
 {
 	return (unsigned int) syscall(SYS_net_recv, 0, (uint32_t) buf, len, 0, 0, 0);
 }
+
+unsigned int
+sys_read_mac_low_address()
+{
+	return (unsigned int) syscall(SYS_read_mac_low_address, 0, 0, 0, 0, 0, 0);
+}
+
+unsigned int
+sys_read_mac_high_address()
+{
+	return (unsigned int) syscall(SYS_read_mac_high_address, 0, 0, 0, 0, 0, 0);
+}
+

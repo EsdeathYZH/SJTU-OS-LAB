@@ -26,8 +26,9 @@ input(envid_t ns_envid)
 		cprintf("1\n");
 		r = sys_net_recv(nsipcbuf.pkt.jp_data, 0);
 		while(r == -E_AGAIN){
-			sleep(2);
-			cprintf("3\n");
+			//sleep(2);
+			//cprintf("3\n");
+			sys_yield();
 			r = sys_net_recv(nsipcbuf.pkt.jp_data, 0);
 		}
 		cprintf("2\n");

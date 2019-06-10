@@ -12,7 +12,10 @@ struct E1000 {
 	volatile uint32_t CTRL;             /* 0x00000  Device Control - RW */
 	volatile uint32_t CTRL_DUP;         /* 0x00004  Device Control Duplicate (Shadow) - RW */
 	volatile const uint32_t STATUS;     /* 0x00008  Device Status - RO */
-	uint32_t reserved[49];
+	uint32_t reserved1;
+	volatile uint32_t EECD;             /* 0x00010 EEPROM/Flash Control - RW */
+	volatile uint32_t EERD;             /* 0x00014 EEPROM Read - RW */
+	uint32_t reserved[46];
 	volatile uint32_t IMS;              /* 0x000D0  Interrupt Mask Set - RW */
 	uint32_t reserved2;
 	volatile uint32_t IMC;              /* 0x000D8  Interrupt Mask Clear - WO */
@@ -43,6 +46,8 @@ struct E1000 {
 	volatile uint32_t RAH;              /* 0x05404  Receive Address High - RW */
 };
 
+#define E1000_EERD     0x00014  /* EEPROM Read - RW */
+
 #define E1000_TCTL_EN                2U
 #define E1000_TCTL_PSP               8U
 #define E1000_TCTL_CT_ETHER          (0x10U << 4)
@@ -52,6 +57,9 @@ struct E1000 {
 #define E1000_RCTL_BSIZE_2048        (0U << 16)
 #define E1000_RCTL_SECRC             (1U << 26)
 #define E1000_RCTL_BAM               0x00008000    /* broadcast enable */
+
+#define E1000_EERD_START             1U
+#define E1000_EERD_DONE              16U
 
 #define E1000_TCTL_CT   0x00000ff0    /* collision threshold */
 #define E1000_TCTL_COLD 0x003ff000    /* collision distance */
@@ -89,5 +97,9 @@ int pci_e1000_attach(struct pci_func *pcif);
 int e1000_tx_init();
 int e1000_tx(const void *buf, uint32_t len);
 int e1000_rx(void *buf, uint32_t len);
+
+uint16_t read_word_from_EEPROM(uint8_t addr);
+uint32_t read_mac_low_address();
+uint32_t read_mac_high_address();
 
 #endif  // SOL >= 6

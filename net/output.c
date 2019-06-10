@@ -36,6 +36,7 @@ output(envid_t ns_envid)
 		r = sys_net_send(nsipcbuf.pkt.jp_data, nsipcbuf.pkt.jp_len);
 		while(r == -E_AGAIN){
 			//sleep(2);
+			sys_yield();
 			r = sys_net_send(nsipcbuf.pkt.jp_data, nsipcbuf.pkt.jp_len);
 		}
 		if(r < 0){
