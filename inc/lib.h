@@ -39,6 +39,7 @@ void	exit(void);
 
 // pgfault.c
 void	set_pgfault_handler(void (*handler)(struct UTrapframe *utf));
+void	set_exception_handler(void (*handler)(struct UTrapframe *utf));
 
 // readline.c
 char*	readline(const char *buf);
@@ -53,6 +54,7 @@ static envid_t sys_exofork(void);
 int	sys_env_set_status(envid_t env, int status);
 int	sys_env_set_trapframe(envid_t env, struct Trapframe *tf);
 int	sys_env_set_pgfault_upcall(envid_t env, void *upcall);
+int	sys_env_set_exception_upcall(envid_t env, void *upcall);
 int	sys_page_alloc(envid_t env, void *pg, int perm);
 int	sys_page_map(envid_t src_env, void *src_pg,
 		     envid_t dst_env, void *dst_pg, int perm);
@@ -62,6 +64,8 @@ int	sys_ipc_recv(void *rcv_pg);
 unsigned int sys_time_msec(void);
 int sys_net_send(const void *buf, uint32_t len);
 int sys_net_recv(void *buf, uint32_t len);
+uint32_t sys_read_mac_low_address();
+uint32_t sys_read_mac_high_address();
 
 // This must be inlined.  Exercise for reader: why?
 static inline envid_t __attribute__((always_inline))

@@ -1,0 +1,89 @@
+Question1:How did you structure your transmit implementation? In particular, what do you do if the transmit ring is full?
+
+A:在output helper的主函数output中，我是用了一个循环不断地接收Network server发送来的IPC消息，再将这些IPC消息通过net_tx系统调用调用网卡驱动的transmit函数发包，当发现返回E_AGAIN即ring buffer已经满了的情况，我会先调用sys_yield切换进程以免不必要的poll浪费系统资源，若再被调度到则会重试transmit函数发包。
+
+Question2：How did you structure your receive implementation? In particular, what do you do if the receive queue is empty and a user environment requests the next incoming packet?
+
+A:在Input helper的主函数input中，我是用了一个循环不断地调用网卡驱动的recv函数收包，当发现返回E_AGAIN即ring buffer已经满了的情况，我会先调用sys_yield切换进程以免不必要的poll浪费系统资源，若再被调度到则会重试recv函数发包。收到包后会将这些包通过IPC消息发给Core Network server，由于使用try_send所以当IPC发送失败时我们会不断地重试直到成功。
+
+Question3:What does the web page served by JOS's web server say?
+
+A:
+This file came from JOS.
+Cheesy web page!
+
+Question4:How long approximately did it take you to do this lab?
+
+A：大概一周左右
+
+challenge:
+本次challenge我选择的是实现从硬件EEPROM读取mac地址，在翻阅开发文档后，我根据硬件的设置做了如下调整：
+更改E1000结构体的定义，将EERD寄存器暴露出来：
+struct E1000 {
+	volatile uint32_t CTRL;             /* 0x00000  Device Control - RW */
+	volatile uint32_t CTRL_DUP;         /* 0x00004  Device Control Duplicate (Shadow) - RW */
+	volatile const uint32_t STATUS;     /* 0x00008  Device Status - RO */
+	uint32_t reserved1;
+	volatile uint32_t EECD;             /* 0x00010 EEPROM/Flash Control - RW */
+	volatile uint32_t EERD;             /* 0x00014 EEPROM Read - RW */
+	uint32_t reserved[46];
+	...
+}
+
+之后根据功能需要，我添加了三个接口：
+uint16_t read_word_from_EEPROM(uint8_t addr);
+uint32_t read_mac_low_address();
+uint32_t read_mac_high_address();
+这三个接口的功能很显然：从EEPROM读取一个word、读取mac的高位低位地址
+
+实现如下，从EEPROM读取数据的流程我使用了EERD(EEPROM Read register),流程如下：
+1.在EERD的addr部分写入读取地址（mac地址的三个字节分别在0x00,0x01,0x02）
+2.将EERD.START位置1
+3.不断轮询EERD.DONE位直到被置为1
+4.从EERD.DATA部分读取数据，清空EERD寄存器
+
+uint16_t 
+read_word_from_EEPROM(uint8_t addr){
+	//fill address in EERD
+	base->EERD &= (~0xfffc);
+	base->EERD |= (addr << 8);
+	//start read
+	base->EERD |= E1000_EERD_START;
+	//poll until read is done
+	while((base->EERD & E1000_EERD_DONE) == 0) ;
+	base->EERD &= (~E1000_EERD_DONE);
+	uint16_t data = (base->EERD >> 16) & 0xffff;
+	base->EERD &= 0xffff;
+	return data;
+}
+
+uint32_t 
+read_mac_low_address(){
+	uint32_t mac_word0 = read_word_from_EEPROM(0x00);
+	uint32_t mac_word1 = read_word_from_EEPROM(0x01);
+	return (mac_word0 | (mac_word1 << 16));
+}
+
+uint32_t
+read_mac_high_address(){
+	uint32_t mac_word2 = read_word_from_EEPROM(0x02);
+	return mac_word2;
+}
+
+之后，我将上述接口做成syscall系统调用暴露给user，在net/lwip/jos/jif/jif.c的low_level_init函数中使用syscall：
+uint32_t low_addr = sys_read_mac_low_address();
+uint32_t high_addr = sys_read_mac_high_address();
+// netif->hwaddr[0] = 0x52;
+// netif->hwaddr[1] = 0x54;
+// netif->hwaddr[2] = 0x00;
+// netif->hwaddr[3] = 0x12;
+// netif->hwaddr[4] = 0x34;
+// netif->hwaddr[5] = 0x56;
+netif->hwaddr[0] = (low_addr&0xff);
+netif->hwaddr[1] = ((low_addr>>8)&0xff);
+netif->hwaddr[2] = ((low_addr>>16)&0xff);
+netif->hwaddr[3] = ((low_addr>>24)&0xff);
+netif->hwaddr[4] = (high_addr&0xff);
+netif->hwaddr[5] = ((high_addr>>8)&0xff);
+
+更改QEMU设置的mac地址，运行 make grade，分数未发生改动，证明我的实现是正确的。

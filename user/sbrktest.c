@@ -11,8 +11,9 @@ umain(int argc, char **argv)
 	char *s;
 
 	start = sys_sbrk(0);
+	cprintf("start:%llx\n", start);
 	end = sys_sbrk(ALLOCATE_SIZE);
-
+	//cprintf("end%llx\n", end);
 	if (end - start < ALLOCATE_SIZE) {
 		cprintf("sbrk not correctly implemented\n");
 	}

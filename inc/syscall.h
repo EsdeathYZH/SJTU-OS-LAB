@@ -14,6 +14,7 @@ enum {
 	SYS_env_set_status,
 	SYS_env_set_trapframe,
 	SYS_env_set_pgfault_upcall,
+	SYS_env_set_exception_upcall,
 	SYS_yield,
 	SYS_ipc_try_send,
 	SYS_ipc_recv,
@@ -22,6 +23,8 @@ enum {
 	SYS_time_msec,
 	SYS_net_send,
 	SYS_net_recv,
+	SYS_read_mac_low_address,
+	SYS_read_mac_high_address,
 	NSYSCALLS
 };
 
