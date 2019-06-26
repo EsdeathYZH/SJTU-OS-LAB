@@ -31,6 +31,7 @@ sched_yield(void)
 
 	// LAB 4: Your code here.
 	int i;
+	struct Env* envs_addr = (struct Env*)UENVS;
 	if(!curenv){
 		for(i = 0; i < NENV; i++){
 			if(envs[i].env_status == ENV_RUNNABLE){
@@ -48,6 +49,23 @@ sched_yield(void)
 			env_run(curenv);
 		}
 	}
+	// if(!curenv){
+	// 	for(i = 0; i < NENV; i++){
+	// 		if(envs_addr[i].env_status == ENV_RUNNABLE){
+	// 			env_run(&envs_addr[i]);
+	// 		}
+	// 	}
+	// }else{
+	// 	envid_t env_id = ENVX(curenv->env_id);
+	// 	for(i = (env_id + 1) % NENV; i != env_id; i = (i + 1) % NENV){
+	// 		if(envs_addr[i].env_status == ENV_RUNNABLE){
+	// 			env_run(&envs_addr[i]);
+	// 		}
+	// 	}
+	// 	if(curenv->env_status == ENV_RUNNING){
+	// 		env_run(curenv);
+	// 	}
+	// }
 	// sched_halt never returns
 	sched_halt();
 }

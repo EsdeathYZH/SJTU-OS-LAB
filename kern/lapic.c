@@ -112,6 +112,7 @@ lapic_init(void)
 	lapicw(TPR, 0);
 }
 
+__user_mapped_text
 int
 cpunum(void)
 {

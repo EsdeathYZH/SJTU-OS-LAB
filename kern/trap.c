@@ -27,8 +27,8 @@ static struct Trapframe *last_tf;
 /* Interrupt descriptor table.  (Must be built at run time because
  * shifted function addresses can't be represented in relocation records.)
  */
-struct Gatedesc idt[256] = { { 0 } };
-struct Pseudodesc idt_pd = {
+struct Gatedesc idt[256] __user_mapped_data = { { 0 } };
+struct Pseudodesc idt_pd __user_mapped_data = {
 	sizeof(idt) - 1, (uint32_t) idt
 };
 
@@ -185,6 +185,7 @@ trap_init_percpu(void)
 	// Setup a TSS so that we get the right stack
 	// when we trap to the kernel.
 	int cpuid = thiscpu->cpu_id;
+	assert(cpuid>=0);
 	thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - cpuid * (KSTKSIZE + KSTKGAP);
 	thiscpu->cpu_ts.ts_ss0 = GD_KD;
 	thiscpu->cpu_ts.ts_iomb = sizeof(struct Taskstate);
@@ -417,7 +418,7 @@ page_fault_handler(struct Trapframe *tf)
 
 	// LAB 3: Your code here.
 	if((tf->tf_cs & 3) == 0) {
-		panic("Page fault bug from kernel mode!address:%d", fault_va);
+		panic("Page fault bug from kernel mode!address:%x", fault_va);
 	}
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
@@ -489,9 +490,15 @@ switch_and_trap(struct Trapframe *frame)
 	// LAB7: Your code here
 	if ((frame->tf_cs & 3) == 3) {
 		// Calculate the current CPU core number
-		int cpunum = -1;
+		int cpu_num = -1;
+		uint32_t esp = read_esp();
+		cpu_num = (KSTACKTOP - esp) / (KSTKSIZE+KSTKGAP);
 		// Load the physical address of kernel page table
 		// Switch to the kernel page table
+		struct Env* read_only_env =  (struct Env*)(UENVS + (uint32_t)cpus[cpu_num].cpu_env - (uint32_t)envs);
+		//struct Env* read_only_env =  ((struct Env*)UENVS);(uint32_t)cpus[cpu_num].cpu_env - (uint32_t)envs
+		lcr3(PADDR(read_only_env->env_kern_pgdir));
+		//lcr3(PADDR(read_only_env));
 	}
 	trap(frame);
 }

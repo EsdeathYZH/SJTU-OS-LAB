@@ -16,7 +16,7 @@
 #include <kern/spinlock.h>
 #include <kern/kpti.h>
 
-struct Env *envs = NULL;		// All environments
+struct Env *envs __user_mapped_data = NULL;		// All environments
 static struct Env *env_free_list;	// Free environment list
 					// (linked by Env->env_link)
 
@@ -37,7 +37,8 @@ static struct Env *env_free_list;	// Free environment list
 // definition of gdt specifies the Descriptor Privilege Level (DPL)
 // of that descriptor: 0 for kernel and 3 for user.
 //
-struct Segdesc gdt[NCPU + 5] =
+
+struct Segdesc gdt[NCPU + 5] __user_mapped_data =
 {
 	// 0x0 - unused (always faults -- for trapping NULL far pointers)
 	SEG_NULL,
@@ -167,12 +168,14 @@ env_init_percpu(void)
 static int
 env_setup_vm(struct Env *e)
 {
+	static struct PageInfo *slave_page = NULL;
 	int i;
 	struct PageInfo *p = NULL;
 
 	// Allocate a page for the page directory
 	if (!(p = page_alloc(ALLOC_ZERO)))
 		return -E_NO_MEM;
+
 
 	// Now, set e->env_pgdir and initialize the page directory.
 	//
@@ -196,14 +199,46 @@ env_setup_vm(struct Env *e)
 	memset(e->env_pgdir, 0, PGSIZE);
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
-	for(uintptr_t index = PDX(UTOP); index < NPDENTRIES; index++){
-		e->env_pgdir[index] = kern_pgdir[index];
+	// for(uintptr_t index = PDX(UTOP); index < NPDENTRIES; index++){
+	// 	e->env_pgdir[index] = kern_pgdir[index];
+	// }
+	// Allocate a slave page 
+	if(!slave_page){
+		slave_page = page_alloc(ALLOC_ZERO);
+		if(!slave_page) return -E_NO_MEM;
+		assert(PDX(__USER_MAP_BEGIN__) == PDX(__USER_MAP_END__));
+		void* slave_addr = KADDR(page2pa(slave_page));
+		void* master_addr = KADDR(PTE_ADDR(kern_pgdir[PDX(__USER_MAP_BEGIN__)]));
+		//memcpy((void*)addr, KADDR(PTE_ADDR(e->env_pgdir[PDX(__USER_MAP_BEGIN__)])), PGSIZE);
+		for(uintptr_t index = PTX(__USER_MAP_BEGIN__); index < PTX(__USER_MAP_END__); index++){
+			memcpy(&((pte_t*)slave_addr)[index], &((pte_t*)master_addr)[index], sizeof(pte_t));
+		}
 	}
+
+	// for(uintptr_t index = PDX(__USER_MAP_BEGIN__); index <= PDX(__USER_MAP_END__); index++){
+	// 	e->env_pgdir[index] = kern_pgdir[index];
+	// }
+	e->env_pgdir[PDX(__USER_MAP_BEGIN__)] = kern_pgdir[PDX(__USER_MAP_BEGIN__)];
+	e->env_pgdir[PDX(__USER_MAP_BEGIN__)] &= 0xfff;
+	e->env_pgdir[PDX(__USER_MAP_BEGIN__)] |= page2pa(slave_page);
+
+	//map kernel stack
+	e->env_pgdir[PDX(MMIOLIM)] = kern_pgdir[PDX(MMIOLIM)];
+	e->env_pgdir[PDX(UENVS)] = kern_pgdir[PDX(UENVS)];
 	e->env_pgdir[PDX(UVPT)] = PADDR(e->env_pgdir) | PTE_P | PTE_U;
 
 	// LAB 7: Your code here.
 	// Allocate another page to hold kernel page table
-
+	struct PageInfo *kern_p = NULL;
+	if (!(kern_p = page_alloc(ALLOC_ZERO)))
+		return -E_NO_MEM;
+	kern_p->pp_ref++;
+	e->env_kern_pgdir = (pde_t*)page2kva(kern_p);
+	//for consistency
+	for(uintptr_t index = PDX(UTOP); index < NPDENTRIES; index++){
+		e->env_kern_pgdir[index] = kern_pgdir[index];
+	}
+	e->env_kern_pgdir[PDX(UVPT)] = PADDR(e->env_kern_pgdir) | PTE_P | PTE_U;
 	return 0;
 }
 
@@ -382,6 +417,7 @@ load_icode(struct Env *e, uint8_t *binary)
 					memcpy(page2kva(page), binary + program->p_offset + pg_index*PGSIZE - va_offset, PGSIZE);
 				}
 				page_insert(e->env_pgdir, page, (void*)va_start + pg_index*PGSIZE, PTE_U | PTE_W);
+				page_insert(e->env_kern_pgdir, page, (void*)va_start + pg_index*PGSIZE, PTE_U | PTE_W);
 			} 
 		}
 	}
@@ -390,6 +426,7 @@ load_icode(struct Env *e, uint8_t *binary)
 	// at virtual address USTACKTOP - PGSIZE.
 	struct PageInfo* stack_page = page_alloc(ALLOC_ZERO);
 	page_insert(e->env_pgdir, stack_page, (void*)USTACKTOP - PGSIZE, PTE_U | PTE_W);
+	page_insert(e->env_kern_pgdir, stack_page, (void*)USTACKTOP - PGSIZE, PTE_U | PTE_W);
 	e->env_tf.tf_eip = elf->e_entry;
 	
 	// LAB 3: Your code here.
@@ -437,7 +474,7 @@ env_free(struct Env *e)
 {
 	pte_t *pt;
 	uint32_t pdeno, pteno;
-	physaddr_t pa;
+	physaddr_t pa, pa_kern;
 
 	// If freeing the current environment, switch to kern_pgdir
 	// before freeing the page directory, just in case the page
@@ -458,22 +495,32 @@ env_free(struct Env *e)
 
 		// find the pa and va of the page table
 		pa = PTE_ADDR(e->env_pgdir[pdeno]);
+		pa_kern = PTE_ADDR(e->env_kern_pgdir[pdeno]);
 		pt = (pte_t*) KADDR(pa);
 
 		// unmap all PTEs in this page table
 		for (pteno = 0; pteno <= PTX(~0); pteno++) {
-			if (pt[pteno] & PTE_P)
+			if (pt[pteno] & PTE_P){
 				page_remove(e->env_pgdir, PGADDR(pdeno, pteno, 0));
+				page_remove(e->env_kern_pgdir, PGADDR(pdeno, pteno, 0));
+			}
 		}
 
 		// free the page table itself
 		e->env_pgdir[pdeno] = 0;
+		e->env_kern_pgdir[pdeno] = 0;
 		page_decref(pa2page(pa));
+		page_decref(pa2page(pa_kern));
 	}
 
 	// free the page directory
 	pa = PADDR(e->env_pgdir);
 	e->env_pgdir = 0;
+	page_decref(pa2page(pa));
+
+	// free the kernel page directory
+	pa = PADDR(e->env_kern_pgdir);
+	e->env_kern_pgdir = 0;
 	page_decref(pa2page(pa));
 
 	// return the environment to the free list
@@ -527,6 +574,7 @@ static void
 check_isolate(struct Env *e)
 {
 	pde_t *pgdir = e->env_pgdir;
+	check_user_map(pgdir, __USER_MAP_BEGIN__, __USER_MAP_END__-__USER_MAP_BEGIN__, "user map");
 	uint32_t cnt = 0;
 	for (uintptr_t va = ULIM; va; va += PGSIZE) {
 		if ((uintptr_t) __USER_MAP_BEGIN__ <= va && va < (uintptr_t) __USER_MAP_END__)
@@ -566,13 +614,13 @@ check_isolate(struct Env *e)
 //
 // This function does not return.
 //
+__user_mapped_text
+__attribute__((noreturn))
+__attribute__((noinline))
 void
 env_pop_tf(struct Trapframe *tf)
 {
 	// Record the CPU we are running on for user-space debugging
-	curenv->env_cpunum = cpunum();
-
-	unlock_kernel();
 
 	asm volatile(
 		"\tmovl %0,%%esp\n"
@@ -592,8 +640,12 @@ static void
 kpti_run(struct Env *e)
 {
 	curenv->env_cpunum = cpunum();
-	lcr3(PADDR(e->env_pgdir));
-	env_pop_tf(&e->env_tf);
+	struct Env* read_only_env = ((struct Env *)UENVS)+(e-envs);
+	unlock_kernel();
+	lcr3(PADDR(read_only_env->env_pgdir));
+	env_pop_tf(&read_only_env->env_tf);
+	//lcr3(PADDR(e->env_pgdir));
+	//env_pop_tf(&e->env_tf);
 }
 
 //
@@ -626,7 +678,6 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
-
 	if(curenv == NULL || curenv != e){
 		if(curenv != NULL && curenv->env_status == ENV_RUNNING){
 			curenv->env_status = ENV_RUNNABLE;
@@ -634,8 +685,7 @@ env_run(struct Env *e)
 		curenv = e;
 		curenv->env_status = ENV_RUNNING;
 		curenv->env_runs++;
-		lcr3(PADDR(curenv->env_pgdir));
 	}
-	env_pop_tf(&e->env_tf);
+	kpti_run(e);
 }
 

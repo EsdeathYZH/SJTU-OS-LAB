@@ -42,7 +42,7 @@
 	pushl $(num);							\
 	jmp _alltraps
 
-.text
+.section .user_mapped.text
 
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
@@ -101,7 +101,7 @@ _alltraps:
 	popw %ds
 	popw %es
 	pushl %esp
-	call trap
+	call switch_and_trap
 
 .globl sysenter_handler;							
 .type sysenter_handler, @function;						

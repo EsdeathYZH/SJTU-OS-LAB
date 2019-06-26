@@ -76,12 +76,12 @@ i386_init(void)
 
 #if !defined(TEST_NO_FS)
 	// Start fs.
-	ENV_CREATE(fs_fs, ENV_TYPE_FS);
+	//ENV_CREATE(fs_fs, ENV_TYPE_FS);
 #endif
 
 #if !defined(TEST_NO_NS)
 	// Start ns.
-	ENV_CREATE(net_ns, ENV_TYPE_NS);
+	//ENV_CREATE(net_ns, ENV_TYPE_NS);
 #endif
 
 #if defined(TEST)
@@ -93,7 +93,8 @@ i386_init(void)
 #endif
 #else
 	// Touch all you want.
-	ENV_CREATE(user_icode, ENV_TYPE_USER);
+	//ENV_CREATE(user_icode, ENV_TYPE_USER);
+	ENV_CREATE(user_nosyscall, ENV_TYPE_USER);
 #endif // TEST*
 
 	// Should not be necessary - drains keyboard because interrupt has given up.

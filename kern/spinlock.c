@@ -10,7 +10,8 @@
 #include <kern/kdebug.h>
 
 // The big kernel lock
-struct spinlock kernel_lock = {
+
+struct spinlock kernel_lock __user_mapped_data = {
 #ifdef DEBUG_SPINLOCK
 	.name = "kernel_lock"
 #endif
@@ -79,6 +80,8 @@ spin_lock(struct spinlock *lk)
 }
 
 // Release the lock.
+__user_mapped_text
+__attribute__((noinline))
 void
 spin_unlock(struct spinlock *lk)
 {

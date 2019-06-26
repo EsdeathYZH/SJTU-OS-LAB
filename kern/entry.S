@@ -95,8 +95,10 @@ spin:	jmp	spin
 ###################################################################
 	.p2align	PGSHIFT		# force page alignment
 	.globl		bootstack
+	.section .user_mapped.data
 bootstack:
 	.space		KSTKSIZE
 	.globl		bootstacktop   
+	.section .user_mapped.data
 bootstacktop:
 

@@ -2,6 +2,7 @@
 #define JOS_INC_X86_H
 
 #include <inc/types.h>
+#include <kern/kpti.h>
 
 #define rdmsr(msr,val1,val2) \
 	__asm__ __volatile__("rdmsr" \
@@ -168,6 +169,7 @@ rcr2(void)
 	return val;
 }
 
+__user_mapped_text
 static inline void
 lcr3(uint32_t val)
 {
@@ -259,6 +261,7 @@ read_tsc(void)
 	return tsc;
 }
 
+__user_mapped_text
 static inline uint32_t
 xchg(volatile uint32_t *addr, uint32_t newval)
 {

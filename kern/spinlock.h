@@ -2,6 +2,7 @@
 #define JOS_INC_SPINLOCK_H
 
 #include <inc/types.h>
+#include <kern/kpti.h>
 
 // Comment this to disable spinlock debugging
 #define DEBUG_SPINLOCK
@@ -33,6 +34,7 @@ lock_kernel(void)
 	spin_lock(&kernel_lock);
 }
 
+__user_mapped_text
 static inline void
 unlock_kernel(void)
 {

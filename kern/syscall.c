@@ -239,8 +239,12 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	if(!page){
 		return -E_NO_MEM;
 	}
+	//for consistency
 	int insert_result = page_insert(env->env_pgdir, page, va, perm);
-	if(insert_result < 0){
+	int insert_result_kern = page_insert(env->env_kern_pgdir, page, va, perm);
+	if(insert_result < 0 || insert_result_kern < 0){
+		page_remove(env->env_pgdir, va);
+		page_remove(env->env_kern_pgdir, va);
 		page_free(page);
 		return -E_NO_MEM;
 	}
@@ -297,7 +301,12 @@ sys_page_map(envid_t srcenvid, void *srcva,
 		return -E_INVAL;
 	}
 	int insert_result = page_insert(dst_env->env_pgdir, src_page, dstva, perm);
-	if(insert_result < 0) return insert_result;
+	int insert_result_kern = page_insert(dst_env->env_kern_pgdir, src_page, dstva, perm);
+	if(insert_result < 0 || insert_result_kern < 0){
+		page_remove(dst_env->env_pgdir, dstva);
+		page_remove(dst_env->env_kern_pgdir, dstva);
+		return insert_result < 0? insert_result:insert_result_kern;
+	}
 	return 0;
 }
 
@@ -323,6 +332,7 @@ sys_page_unmap(envid_t envid, void *va)
 		return result;
 	}
 	page_remove(env->env_pgdir, va);
+	page_remove(env->env_kern_pgdir, va);
 	return 0;
 }
 
@@ -418,9 +428,14 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 		// if env wants a page to be transferred.
 		if(env->env_ipc_dstva != 0 && page){
 			int result = page_insert(env->env_pgdir, page, env->env_ipc_dstva, perm);
+			int result_kern = page_insert(env->env_kern_pgdir, page, env->env_ipc_dstva, perm);
 			//	-E_NO_MEM if there's not enough memory to map srcva in envid's
 			//		address space.
-			if(result < 0) return result;
+			if(result < 0 || result_kern){
+				page_remove(env->env_pgdir, env->env_ipc_dstva);
+				page_remove(env->env_kern_pgdir, env->env_ipc_dstva);
+				return result < 0?result:result_kern;
+			} 
 		}
 	}else{
 		env->env_ipc_perm = 0;
@@ -467,8 +482,14 @@ sys_map_kernel_page(void* kpage, void* va)
     if (p == NULL){
         return -E_INVAL;
 	}
+	//[TODO]
     r = page_insert(curenv->env_pgdir, p, va, PTE_U | PTE_W);
-    return r;
+	int r_kern = page_insert(curenv->env_kern_pgdir, p, va, PTE_U | PTE_W);
+	if(r<0 || r_kern<0){
+		page_remove(curenv->env_pgdir, va);
+		page_remove(curenv->env_kern_pgdir, va);
+	}
+    return r_kern<0?r_kern:r;
 }
 
 static int
@@ -480,7 +501,12 @@ sys_sbrk(uint32_t inc)
 		struct PageInfo* p = page_alloc(1);
 		if(p == NULL) return -E_NO_MEM;
 		int r = page_insert(curenv->env_pgdir, p, (void*)(curenv->env_break + i*PGSIZE), PTE_U | PTE_W);
-		if(r < 0) return r;
+		int r_kern = page_insert(curenv->env_kern_pgdir, p, (void*)(curenv->env_break + i*PGSIZE), PTE_U | PTE_W);
+		if(r < 0|| r_kern < 0){
+			page_remove(curenv->env_pgdir, (void*)(curenv->env_break + i*PGSIZE));
+			page_remove(curenv->env_kern_pgdir, (void*)(curenv->env_break + i*PGSIZE));
+			return r<0?r:r_kern;
+		} 
 	}
 	curenv->env_break += ROUNDUP(inc, PGSIZE);
     return curenv->env_break;
